@@ -1,0 +1,66 @@
+/*
+ *  Proyecto Tepuy.
+ *  Programa: get_env.  Obtener Variables desde un archivo plano
+ *  Autor: Riztan Gutierrez.  <riztan at gmail.com>
+ *  Licencia: GPL-3. Visite: http://www.gnu.org/  
+ */
+
+#include "proandsys.ch"
+
+#define CRLF   HB_OSNewLine()
+
+Procedure Get_Env( cBridge, oDestino, cAction )
+
+LOCAL cText, aText, aItem
+LOCAL lBridge := .f.
+
+if cBridge = NIL ; lBridge := .t. ; endif
+
+default cBridge  := oTPuy:cTemps + "tpy_pos.conf"
+default oDestino := oTPuy
+default cAction  := "I"
+
+if FILE( cBridge )
+   cText := MEMOREAD( cBridge )
+else
+   MsgAlert( "No es posible localizar "+cBridge, "Atención" )
+   if lBridget ; oTpuy:lBridge:=.f. ; endif
+   return
+endif
+
+aText := HB_aTokens( cText, CRLF )
+FOR EACH cText IN aText
+   aItem := HB_aTokens( cText, ":=" )
+   If LEN(aItem)=3
+      IF aItem[1]="C"
+if cAction == "I"
+         oDestino:Add( ALLTRIM(aItem[2]), aItem[3] )
+else
+         oDestino:Set( ALLTRIM(aItem[2]), aItem[3] )
+endif
+      ELSEIF aItem[1]="L"
+if cAction == "I"
+         oDestino:Add( ALLTRIM(aItem[2]), IIF("T"$aItem[3],.t.,.f.) )
+else
+         oDestino:Set( ALLTRIM(aItem[2]), IIF("T"$aItem[3],.t.,.f.) )
+endif
+      ELSEIF aItem[1]="D"
+if cAction == "I"
+         oDestino:Add( ALLTRIM(aItem[2]), CTOD(aItem[3]) )
+else
+         oDestino:Set( ALLTRIM(aItem[2]), CTOD(aItem[3]) )
+endif
+      ELSEIF aItem[1]="N"
+if cAction == "I"
+         oDestino:Add( ALLTRIM(aItem[2]), VAL(aItem[3]) )
+else
+         oDestino:Set( ALLTRIM(aItem[2]), VAL(aItem[3]) )
+endif
+      ENDIF
+   EndIf
+NEXT
+
+
+if lBridge; oTpuy:lBridge:=.t. ; endif
+
+Return

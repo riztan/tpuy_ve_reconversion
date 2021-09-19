@@ -1,0 +1,113 @@
+#include "tpy_xbs.ch"
+
+#define _CEROS_  "1000000"
+
+procedure RunRM( oForm )
+  local cFNoColumns := "no_columns.conf"
+
+//   MsgInfo("Aplicando reconversión monetaria")
+//   ::aData := rm_Leer( cFNoColumns )
+   ::aSchemaRun := {}
+
+   ::oModSchema:GotTop()
+   While ::oModSchema:GoNext()
+      if ::oModSchema:GetCol("Convertir")
+         AADD( ::aSchemaRun, ::oModSchema:GetCol("Esquema") )
+      endif
+   EndDo
+   ::oModSchema:GoTop()
+
+   if !::IsDef( "oModel" ) .or. hb_IsNIL(::oModel)
+//View("No")
+     MsgRun( "Leyendo información", {||rm_ModelColumns( oForm )} )
+   endif
+
+   ::nCont := 0
+   ::bCode := {|| prueba(oForm) }
+   ::cResult := ""
+   rm_foreach( oForm, ::bCode )
+   ::oLabInfo:SetMarkup( "<b>Total Registros: "+TRANSFORM( ::nCont, "@E 999,999,999.99")+"</b>" )
+
+   hb_MemoWrit( "resultado.txt", ::cResult ) 
+   ::cTextSql := ::cResult
+   ::oTView:SetText( ::cResult )
+   
+   Inkey(1)
+   ::oNotebook:SetCurrentPage(2)
+   ::oTview:SetFocus( .t. )
+
+   
+
+procedure prueba( oForm )
+
+  local cQry := ""
+  local cEsquema := ::oModel:GetCol("Esquema")
+
+  if ASCAN( ::aSchemaRun, {|a|  a == cEsquema} ) > 0
+     ::nCont++
+     if ::oModel:GetCol( "Convertir" )
+        cQry += "update "+::oModel:GetCol("Esquema")+"."+::oModel:GetCol("Tabla")+" "
+        cQry += "set "+::oModel:GetCol("Columna")+"="
+        cQry += ::oModel:GetCol("Columna")+"/"+_CEROS_+" ; "
+        cQry += CRLF
+     endif   
+  endif
+  ::cResult += cQry
+return
+  
+
+
+function rm_foreach(oForm, bCode, ... )
+
+   local aIter, uValue, cEsquema := "", cNmSchema, oErr
+
+   if hb_ISNIL( bCode ) ; return nil ; endif
+
+   ::oModel:GoTop()
+   While ::oModel:GoNext()
+      if ASCAN( ::aSchemaRun, {|a| a == ::oModel:GetCol("Esquema") } ) > 0
+
+         if cEsquema != ::oModel:GetCol("Esquema")
+            cEsquema := ::oModel:GetCol("Esquema") 
+
+            ::cResult += hb_eol()+"/********"+hb_eol()+"   "+UPPER(cEsquema)+hb_eol()+"*********/"+hb_eol()
+
+            cNmSchema := lower( ::oModel:GetCol("Esquema") ) 
+            if ( 'nm' $ cNmSchema ) .and. !('config' $ cNmSchema )
+               //View( ::oModel:GetCol("Esquema") + "   DEBERIA! " )
+               ::cQry := "select * from "+::oModel:GetCol("Esquema")+".nmconceptos "
+               ::cQry += "where con_mensaj like '%monto%' or "
+               ::cQry += "con_mensaj like '%Bs%' or "
+               ::cQry += "con_repres like '%monto%' or "
+               ::cQry += "con_repres like '%Bs%' "
+
+               TRY
+                  ::oQry := ::oDBServer:Query( ::cQry )
+               CATCH oErr
+                  View( oErr:description )
+                  return NIL
+               END
+               if ::oQry:RecCount()>0 
+                  ::oQry:GoTop()
+                  ::cSubQry := " ##### AJUSTE CORRESPONDIENTE A VARIACIONES E HISTORICO DE MONTOS. "+CRLF
+                  While !::oQry:Eof()
+                     ::cSubQry += "update "+::oModel:GetCol("Esquema")+".nmhistorico "
+                     ::cSubQry += "set his_variac=his_variac/"+_CEROS_+" where "
+                     ::cSubQry += "his_codcon="+ToSql(::oQry:con_codigo)+"; "+CRLF
+                     ::cSubQry += "update "+::oModel:GetCol("Esquema")+".nmvariac "
+                     ::cSubQry += "set var_cantid=var_cantid/"+_CEROS_+" where "
+                     ::cSubQry += "var_codcon="+ToSQL(::oQry:con_codigo)+"; "+CRLF
+                     ::oQry:Skip()
+                  EndDo
+                  ::cSubQry += " #####  FIN "+CRLF
+               endif
+
+               ::cResult += ::cSubQry
+            endif
+         endif
+         EVAL( bCode, ... )
+      endif
+   EndDo
+   uValue := ::oModel:GetCol(2)
+
+return nil

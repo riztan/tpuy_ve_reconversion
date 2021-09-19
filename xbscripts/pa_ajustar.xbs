@@ -1,0 +1,59 @@
+#include "tpy_xbs.ch"
+
+
+procedure pa_Ajustar( oForm )
+   Local aCbteCont, aSql := {}, cSql, cInsert := ""
+   Local oErr
+
+   if !hb_isObject( ::oModCbtesCont ) 
+      MsgAlert("No es posible solicitar ajustes sin detectar antes asientos para procesar.","Atención")
+      return
+   endif
+
+   if empty(::oEntCuenta:GetValue())
+      MsgAlert("Por favor indica la cuenta que se afectará con el ajuste.")
+      return
+   endif
+
+   cSql := "select count(cta_codigo) as cuanto from "+ALLTRIM(::oCmbSchemas:GetValue())+".dpcta "
+   cSql += "where cta_codigo="+ToSql(ALLTRIM(::oEntCuenta:GetValue()))
+
+   if oTPuy:oConn:Query( cSql ):cuanto = 0
+      MsgStop( "La cuenta indicada no existe en el plan de cuentas." )
+      return
+   endif
+
+   If !MsgNoYes( "¿Realmente desea generar los ajustes contables?", "Por favor confirme" )
+      return
+   endif
+
+   cSql :=  "insert into "+ALLTRIM(::oCmbSchemas:GetValue())+".dpasientos (" 
+   cSql +=  "moc_item, moc_cuenta, moc_tipo, moc_docume, moc_numcbt, moc_fecha, moc_origen, "
+   cSql +=  "moc_descri, moc_monto, moc_actual, moc_codaux, moc_nummem, moc_codsuc, moc_tiptra, "
+   cSql +=  "moc_docpag, moc_cencos, moc_numtra, moc_codmon, moc_valcam ) values ( "
+   
+   FOR EACH aCbteCont IN ::aSchCbtesCont
+
+      cInsert := cSql
+      cInsert += ToSql(ALLTRIM(STR(VAL(aCbteCont[4])+1)))+", "+ToSql(ALLTRIM(::oEntCuenta:GetValue()))
+      cInsert += ", '', '', "+ToSql((aCbteCont[1]))+", "+ToSql(aCbteCont[2])
+      cInsert += ", '', 'Ajuste por reconversion 2021', "+ToSql(aCbteCont[3]*-1)
+      cInsert += ", "+iif(aCbteCont[1]="CIERRE","'C'","'S'")+", '', 0, '000001', '', '', '', '', '', 1) "
+      AADD( aSql, cSql + "); " )
+
+      TRY
+         oTPuy:oConn:Execute( cInsert )
+      CATCH oErr
+         MsgAlert( oErr:description )
+         MsgStop( cInsert )
+         return
+      END
+
+   NEXT
+
+   ::oModCbtesCont:oTreeView:ClearModel() 
+   MsgInfo("Finalizado.")
+
+return
+
+//eof

@@ -1,0 +1,128 @@
+#include "tpy_xbs.ch"
+
+
+procedure tablas( oForm )
+
+  local aExceptions, nPos, aNoSchema
+  local cFNoSchema  := "no_schema.conf"
+  local cFNoColumns := "no_columns.conf"
+  local lModel := .F., aIter := ARRAY(4)
+
+  if hb_isObject(::oModel)
+     lModel := .T.
+     if hb_isObject( ::oModel )
+        if MsgNoYes( "¿Realmente desea recargar la información?","Por favor confirma tu solicitud." )
+           ::oNotebook:SetCurrentPage(1)
+
+           ::oLabInfo:SetMarkup("<b><i>Recargando información...</i></b>")
+           ::oModel:oTreeView:ClearModel()
+           ::oModSchema:oTreeView:ClearModel()
+           ::oTView:setText("")
+           SysRefresh()
+        else
+           return
+        endif
+     else
+        ::oLabInfo:SetMarkup("<b><i>Cargando información</i></b>")
+     endif
+  else
+     ::oNotebook:SetCurrentPage(1)
+     ::oLabInfo:SetMarkup("<b><i>Cargando información</i></b>")
+  endif
+
+  SysRefresh()  
+
+  if hb_isObject( ::oTVIntro ); ::oTVIntro:Hide() ; endif
+
+  rm_ModelColumns( @oForm )
+  ::oLabInfo:SetMarkup("<b><i>Finalizado.</i></b>")
+  SysRefresh()
+  inkey(2)
+  ::oLabInfo:SetText("")
+
+  if !lModel
+
+     DEFINE MODEL  ::oModSchema ;
+            STRUCT ::aSchemaStru ;
+            DATA   ::aSchemaData ;
+
+     DEFINE LISTBOX ::oLBoxSchema ;
+            MODEL   ::oModSchema ;
+            OF      ::oBoxSchema
+
+     DEFINE MODEL  ::oModel  ;
+            STRUCT ::aStruct ;
+            DATA   ::aData
+
+     DEFINE LISTBOX ::oLbox ;
+            MODEL ::oModel  ;
+            OF ::oBoxData
+
+  endif
+
+  ::oLBoxSchema:lBar := .f.
+  ::oLBoxSchema:bEdit := {|| __MarcaSchema(oForm) }
+  ::oLBoxSchema:Active()
+
+
+  ::oLBox:lBar := .f.
+  ::oLBox:bEdit := {|| __Marcar(oForm) }
+  ::oLBox:Active()
+
+//  ::oBtnSave:Show()
+return
+
+
+
+/* Guardar la configuración */
+procedure __Save(oForm)
+   local cText := ""
+   local bAction := {| oTView, pModel, aIter, pPath | cText += __CreaLinea( ::oLBox, aIter )  }
+   ::oLBox:ForEach( bAction )
+   if hb_MemoWrit( "prueba.txt",cText )
+      MsgInfo( "Lo datos han sido almacenados correctamente.","Información" )
+   else
+      MsgAlert( "La ha sido posible guardar la información.","Atención!" )
+   endif
+
+
+/*Crea la linea a guardar en la configuracion*/
+function __CreaLinea( oLBox, aIter )
+   local cLinea := ""
+   if !oLBox:GetValue( "Convertir", aIter )
+      cLinea := oLBox:GetValue( "Esquema", aIter )
+      cLinea += "."
+      cLinea += oLBox:GetValue( "Tabla"  , aIter )
+      cLinea += "."
+      cLinea += oLBox:GetValue( "Columna", aIter )
+      cLinea += ";"+hb_eol()
+   endif
+return cLinea
+   
+
+
+/* Marca o Desmarca la columna a convertir */
+procedure __MarcaSchema(oForm)
+   ::oModSchema:SetValue("Convertir",!::oModSchema:GetCol("Convertir"))
+
+
+
+/* Marca o Desmarca la columna a convertir */
+procedure __Marcar(oForm)
+   ::oModel:SetValue("Convertir",!::oModel:GetCol("Convertir"))
+
+
+
+/* Salir de la ventana de configuración.*/
+function __Exit(oForm)
+
+   if MsgNoYes( "¿Realmente desea abandonar la configuración?","Por favor confirme." )
+      ::oLBox:End()
+      ::oModel:Release()
+      ::oWndTablas:End()
+   endif
+
+return
+
+
+//eof

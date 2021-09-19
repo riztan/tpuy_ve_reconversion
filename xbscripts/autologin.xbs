@@ -1,0 +1,194 @@
+/*
+ *  Proyecto Tepuy.
+ *  Fuente a Interpretar y ejecutar.
+ *  Autor: Riztan GutiÃ©rrez.  riztan@gmail.com
+ *  Licencia: GPL-3. Visite: http://www.gnu.org/  
+ */
+
+#include "tpy_xbs.ch"
+
+/* cabeceras para gnomedb y libgda */
+#include "gnomedb.ch"
+
+#define  POSTGRESQL    0
+#define  LIBGDA        1
+#define  MYSQL         2
+
+
+Function AutoLogin( oForm )
+   Local oConectorType, oIterator
+   Local oXmlDoc := oTpuy:oXmlConnections
+   Local oConnTmp
+
+   default oForm := oTPuy
+
+   IF !HB_ISNIL( oXmlDoc ) 
+
+      /* aqui se deben recorrer las conexiones existentes y cerrarlas */
+
+      oConectorType := oXmlDoc:FindFirst("connection")
+
+//View( hGet(oConectorType:aAttributes,"nombre") )
+
+      While !HB_ISNIL(  oConectorType )
+
+         oIterator := TXmlIterator():New( oConectorType )
+         oNodeTmp := oIterator:Next()
+         While !HB_ISNIL( oNodeTmp )
+
+            //View( oNodeTmp:ToArray() )
+            //View( oNodeTmp:cName )
+            //View( oNodeTmp:GetAttribute("tipo") )
+            /*  Conectar...  */
+
+            oConnTmp := __Connect( @oForm, oNodeTmp )
+
+            If  ValType( oConnTmp ) = "O" .OR. ValType( oConnTmp ) = "N"
+               AADD( oTpuy:aConnection , oConnTmp )
+               
+/*
+               If !oTpuy:oConnections:IsDef(oConectorType:cName)
+                  oTpuy:oConnections:Add(cName, oConnTmp)
+               Else
+                  MsgStop( "Ya Existe!!!!" )
+               EndIf
+*/
+            EndIf
+
+            oNodeTmp := oIterator:Next()
+
+         EndDo
+         oConectorType := oXmlDoc:FindNext()
+      EndDo
+
+   ENDIF
+
+Return .T.
+
+
+
+FUNCTION __Connect( oForm, oConector )
+   Local lRet :=.F.
+   Local pClient, aError
+   Local pConn, oConn
+   Local cPQStatus:=""
+   Local cHost,cPort,cDb,cUser,cPass,lLoad,lWrite
+   Local cDSN,cSavePass
+   Local hTConn
+   
+   Default oConector := NIL
+
+   If ValType( oConector ) <> "O"
+      Return NIL
+   EndIf
+
+   cName := oConector:cName
+
+   cType     := UPPER( oConector:GetAttribute( "tipo"      ))
+   cHost     := oConector:GetAttribute( "host"      )
+   cDB       := oConector:GetAttribute( "database"  )
+   cUser     := oConector:GetAttribute( "user"      )
+   cPass     := oConector:GetAttribute( "password"  )
+   cPort     := oConector:GetAttribute( "port"      )
+   //cSavePass := oConector:GetAttribute( "save_pass" )
+   lLoad     := iif(oConector:GetAttribute( "load" )="1",.t.,.f.)
+   lWrite    := iif(oConector:GetAttribute( "write")="1",.t.,.f.)
+
+   //If ( ".t." IN lower( cSavePass ) )
+      cPass := hb_decrypt( cPass, oTpuy:cPassword )
+      cPass := Left(cPass,Len(cPass)-4)
+   //EndIf
+
+   if hb_IsObject( ::oConn )
+      ::oConn:Add( cName, Hash() )
+      hTConn := ::oConn:Get(cName)
+      hTConn["name" ] := cName
+      hTConn["type" ] := cType
+      hTConn["load" ] := lLoad
+      hTConn["write"] := lWrite
+      hTConn["host" ] := cHost
+      hTConn["port" ] := cPort
+      hTConn["user" ] := cUser
+      hTConn["pass" ] := cPass
+      hTConn["db"   ] := cDB
+   endif
+
+
+   If cType = "MYSQL"
+      TRY
+         oConn = TDolphinSrv():New( cHost, ;
+                                    cUser, ;
+                                    cPass, ;
+                                    Val(cPort), 0, cDB )
+
+      CATCH oErr
+         MsgStop("No se puede conectar al Servidor MySQL. "+hb_eol()+;
+                 "Host: <b>"+cHost+"</b>"+hb_eol()+;
+                 UTF_8("Descripción: ")+hb_eol()+;
+                 oErr:description,UTF_8("Atención"))
+//? cHost,cUser,cPass,cPort,cDB
+         RETURN NIL
+      END
+//      Return oConn
+
+   ElseIf cType != "POSTGRESQL" 
+
+      /*  Conectar via GDA  */
+/*
+      cDSN := oConector:cName
+
+      oConn := TpyConnection():New( LIBGDA, cDSN, cHost, cDB, cUser, cPass, cPort )
+
+      If oConn:lError
+         Return NIL
+      EndIf
+
+      Return oConn
+*/
+   EndIf
+
+   oTpuy:cHost     := cHost
+   oTpuy:nPort     := cPort
+   oTpuy:cDB       := cDB
+   oTpuy:cUser     := cUser
+   oTpuy:cPass     := cPass
+//   oTpuy:cSavePass := ".T."
+
+/*   View( { {"host"    , cHost }, ;
+           {"database", cDB   }, ;
+           {"port"    , cPort }, ; 
+           {"user"    , cUser }, ;
+           {"pasword" , cPass }  ;
+         } )
+*/
+
+/*
+   pConn := PQsetdbLogin( cHost, cPort, NIL, NIL, cDb, cUser, cPass)
+
+   pConn := PQConnect(cDB, cHost, cUser, cPass, Val(cPort) )
+
+//   oTpuy:conn := conn
+   
+   oConn := TPQserver():New( cHost, cDB, cUser, cPass, Val(cPort)  )
+
+   If PQStatus(pConn) != CONNECTION_OK
+
+      cPQStatus := Alltrim( STR( PQStatus(pConn) ) )
+
+      MsgStop( "<b>"+MSG_STATUS_CONNECTION+":</b> "+cPQStatus+CRLF+;
+               "<b>Error:</b> "+( PQErrorMessage(pConn) ),;
+               MSG_ERROR_CONNECTION )
+
+      Return NIL
+*/
+/*
+   Else
+      MsgInfo( "PostgreSQL "+MSG_CONNECTED+"!" )
+*/
+//   EndIf
+
+   hTConn["oConn"] := oConn
+
+RETURN oConn
+
+//eof

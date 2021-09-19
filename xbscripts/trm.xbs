@@ -1,0 +1,206 @@
+/* 
+ * Proyecto TPuy
+ * tventas: Clase para Formulario de Analisis en Ventas
+ *
+ */
+
+#include "tpy_class.ch"
+
+//#xcommand DEFINE ANALISIS VENTAS <oObj> => <oObj>:= TRM():New()
+//#xcommand DEFINE WINDOW VENTAS <oObj> => <oObj>:CreaVentana()
+//#xcommand ACTIVATE ANALISIS VENTAS <oObj>  => <oObj>:Show()
+
+CLASS TRM FROM TPUBLIC
+
+   DATA nLimit      INIT 10
+   DATA cColumns    INIT ""
+   DATA cCondition  INIT ""
+   DATA cOrder      INIT ""
+   DATA lAscendente INIT .F.
+
+   DATA cResFile    INIT oTpuy:cResources+"plantilla_rm.ui"
+   DATA cTitle      INIT "Reconversion Monetaria"
+
+   DATA aStruct
+   DATA aData
+
+   DATA oModel
+   DATA oListBox
+
+   DATA oParent
+   DATA oWnd
+   DATA oImgBanner
+   DATA oLabBanner
+
+   DATA oProductos
+   DATA oEntProductos
+
+   Method New( oParent ) 
+   Method SetLimit( nLimit )          INLINE  ::nLimit := nLimit
+   Method SetColumns( cColumns )      INLINE  ::cColumns := cColumns
+   Method SetCondition( cCondition )  INLINE ::cCondition := cCondition
+
+   Method CreaVentana()
+   Method Show()
+
+   //Method Configure() // Crea Ventana de Configuración.
+   Method Refresh()
+
+ENDCLASS
+
+
+
+METHOD New( oParent ) CLASS TRM
+
+   ::Super:New()
+   ::oParent := oParent
+
+RETURN self
+
+
+
+METHOD CreaVentana() CLASS TRM
+   local cRes 
+   local oFBanner, oFFrame
+   local cProductos := ""
+
+   SET RESOURCES cRes FROM FILE ::cResFile
+
+   DEFINE FONT oFBanner NAME "Arial Black"
+   DEFINE FONT oFFrame  NAME "Timen New Roman 10 "//"TW Cent MT"
+   
+   DEFINE WINDOW ::oWnd TITLE ::cTitle ;
+          SIZE WND_WIDE,400 ;
+          ICON_FILE ORSEIT_ICON ;
+          ID "window1" RESOURCE cRes
+
+      DEFINE IMAGE ::oImgBanner ID "banner" RESOURCE cRes
+             ::oImgBanner:SetFile( WND_BANNER )
+             ::oImgBanner:Adjust(WND_WIDE,70)
+
+      DEFINE LABEL ::oLabBanner TEXT ::cTitle ;
+             FONT oFBanner ;
+             ID "lab_banner" RESOURCE cRes
+
+      DEFINE BOX ::oBoxGrid ID "hbox1" RESOURCE cRes
+
+      DEFINE BUTTON ::oProductos ;
+             ACTION MsgInfo("Hola") ;
+             ID "btn_productos" RESOURCE cRes
+
+      DEFINE ENTRY ::oEntProductos VAR cProductos ;
+             ID "ent_productos" RESOURCE cRes
+             // No esta funcionando el ACTION.
+             // ACTION __Valida( oForm, "productos" ) ;
+             Gtk_Signal_Connect( ::oEntProductos:pWidget, ;
+				 "focus-out-event", ;
+				 {|| __Valida(Self,"productos") } )
+
+RETURN 
+
+
+METHOD Show()  CLASS TRM
+   ACTIVATE WINDOW ::oWnd CENTER
+Return 
+
+
+METHOD Refresh()  CLASS TRM
+   local cQry, oQry, aStruct, aData, aItem, aIter := ARRAY(4)
+   local oError
+
+   cQry := "select mov_codigo, trim(cli_nombre), mov_fecha, mov_undmed, "
+   cQry += "mov_cantid, mov_precio, mov_total from dpmovinv "
+   cQry += "inner join dpclientes on mov_codcta=cli_codigo "
+   cQry += "inner join dpinv on inv_codigo=mov_codigo "
+
+   if !Empty( ::cCondition )
+//      cQry += "where mov_codigo='MAXICONO' and "
+//      cQry += "mov_tipdoc='FAV' "
+      cQry += "where " + ::cCondition + " "
+   endif
+
+   if !Empty(::cOrder)
+      cQry += "order by "+::cOrder+" " //"mov_total desc "
+      if !::lAscendente
+         cQry += " desc "
+      endif
+   endif
+
+   if ::nLimit > 0
+     cQry += "limit " + ALLTRIM(STR(::nLimit))
+   endif
+
+
+   TRY
+      oQry := TDolphinQry():New(cQry, ::oDpServer)
+   CATCH oError
+      MsgAlert("No se logró realizar la consulta"+hb_eol()+hb_eol()+;
+               "Proceso: "+procname(),;
+               "Atención")
+      MsgAlert( cQry )
+      Return
+   END
+    
+   if oQry:RecCount()=0 
+      oQry:End()
+      MsgAlert("No hay información que cumpla con "+;
+               "las condiciones establecidas." + hb_eol()+hb_eol()+;
+               "Proceso: "+procname(),;
+               "Atención")
+      Return
+   endif
+
+//   View( oQry:FillArray() )
+
+//View( oQry:FieldName(1) )
+
+   aStruct := {{"Código","C",10,0},;
+               {"Cliente","C",60,0},;
+               {"Fecha","D",10,0},;
+               {"Unidad de "+hb_eol()+"Medida","C",10,0},;
+               {"Cantidad","N",4,2},;
+               {"Precio","N",10,2},;
+               {"Total"+hb_eol()+"100","N",6,2};
+              }
+
+   aData := oQry:FillArray()
+   AEVAL( aData, {|a| a[1]:= ALLTRIM(a[1]), a[2] := ALLTRIM(a[2]) } )
+
+   oQry:End()
+
+ 
+   if hb_ISObject( ::oModel )
+      ::oModel:oTreeView:ClearModel()
+      
+      FOR EACH aItem IN aData
+
+         APPEND LIST_STORE ::oModel:oLbx ITER aIter ;
+                VALUES aItem[1],aItem[2],DTOC(aItem[3]),aItem[4],;
+                       TRANSFORM( aItem[5], P_62 ),;
+                       TRANSFORM( aItem[6], P_62 ),;
+                       TRANSFORM( aItem[7], P_92 )
+
+                //VALUES aItem[1], aItem[2], aItem[3],;
+                //       aItem[4], aItem[5], aItem[6],;
+                //       aItem[7]
+
+      NEXT
+
+   else
+      DEFINE MODEL ::oModel ;
+             STRUCT aStruct ;
+             DATA   aData
+
+      DEFINE LISTBOX ::oListBox ;
+             MODEL ::oModel  ;
+             TITLE "Top Ventas";
+             OF ::oBoxGrid
+
+      ::oListBox:lBar := .f.
+      ::oListBox:Active()
+
+   endif
+
+Return 
+
+//eof

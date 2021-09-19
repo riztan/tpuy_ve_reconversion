@@ -1,0 +1,144 @@
+/* 
+ * Proyecto TPuy
+ * rm_check: Revisa los asientos contables luego de la reconversion monetaria
+ *
+ */
+
+#include "tpy_xbs.ch"
+#include "tdolphin.ch"
+
+Procedure rm_check()
+   local oForm, aLine, cFile := "resultado",nCont := 0
+
+   IF !hb_IsArray(oTpuy:aConnection) .OR. Empty(oTpuy:aConnection)
+      oTpuy:RunXBS('initialize','CONNECT')
+   ENDIF
+
+   SET PUBLIC oForm
+
+//   ferase(cFile)
+
+   ::oAdmServer := oTpuy:aConnection[1]
+/*
+   ::cQry := "select MOC_TIPO,MOC_DOCUME,MOC_NUMCBT,MOC_FECHA,MOC_DESCRI, "
+   ::cQry += "MOC_MONTO,sum(MOC_MONTO) AS SALDO,MOC_CUENTA, "
+   ::cQry += "MOC_ACTUAL,MOC_CODSUC "
+   ::cQry += "from sge0007.dpasientos where "
+   ::cQry += "(MOC_ACTUAL='S') "
+   ::cQry += " group by MOC_NUMCBT, MOC_FECHA, MOC_DOCUME "
+//   ::cQry += " limit 100000 "
+*/
+   ::cQry := "select * "
+   ::cQry += "from sge0007.dpasientos_saldo where "
+   ::cQry += " ABS(SALDO)>0 and ABS(SALDO)<1 "
+   ::cQry += " group by MOC_NUMCBT, MOC_FECHA "
+//   ::cQry += " limit 10 "
+
+//   View(::cQry)
+//return
+
+   ::oQry := TDolphinQry():New( ::cQry, ::oAdmServer )
+    
+   if ::oQry:RecCount()==0
+      ::oQry:End()
+      MsgAlert("Consulta vacia")
+      return nil
+   endif
+
+
+View( ::oQry:RecCount() )
+
+/*
+select MOC_TIPO,MOC_DOCUME,MOC_NUMCBT,MOC_FECHA,MOC_DESCRI,
+       MOC_MONTO,sum(MOC_MONTO) AS SALDO,MOC_CUENTA,MOC_ACTUAL,MOC_CODSUC 
+from dpasientos where (MOC_ACTUAL = 'N') 
+group by MOC_NUMCBT,MOC_FECHA,MOC_DOCUME
+*/
+
+   ::aData := {}
+//   AEVAL( ::oQry:FillArray(), {|a| iif( a[7]<>0, AADD(::aData,a), nil )} )
+//   ::aData := ::oQry:FillArray()
+
+   ::cQry  := ""
+   FOR EACH aLine IN ::oQry:FillArray()
+//      if ABS(aLine[7]) <> 0
+
+         if aLine[7] > 0
+            ::cCuenta := "7.2.10"
+         else
+            ::cCuenta := "7.1.18"
+         endif
+
+//::cCuenta := "Indefinida"
+
+         ::cQry := "insert into sge0007.dpasientos set "
+         ::cQry += "moc_item='0000', "
+         ::cQry += "moc_tipo="+ToSQL(ALLTRIM(aLine[1]))+", "
+         ::cQry += "moc_docume="+ToSql(ALLTRIM(aLine[2]))+", "
+         ::cQry += "moc_numcbt="+ToSql(ALLTRIM(aLine[3]))+", "
+         ::cQry += "moc_fecha="+ToSql(aLine[4])+", "
+         ::cQry += "moc_descri='Ajuste por reconversion monetaria Ago-2018', "
+         ::cQry += "moc_monto="+ToSql(aLine[7]*-1)+", "
+         ::cQry += "moc_cuenta="+ToSql(ALLTRIM(::cCuenta))+", "
+         ::cQry += "moc_actual="+ToSql(aLine[9])+", "
+         ::cQry += "moc_codsuc="+ToSql(aLine[10])+", "
+         ::cQry += "moc_tiptra='D', moc_cencos='00000001', moc_codmon='Bs', "
+         ::cQry += "moc_numtra='#', "
+         ::cQry += "moc_valcam='1'; "+CRLF
+
+::oAdmServer:Execute(::cQry)
+
+/*
+if nCont >= 2000
+   nCont := 0
+//   MsgInfo( cFile+"_"+ALLTRIM(STR(YEAR(DATE())))+;
+//            ALLTRIM(STR(MONTH(DATE())))+;
+//            ALLTRIM(STR(DAY(DATE())))+"_"+STRTRAN(ALLTRIM(TIME()),":","")+".txt" ) 
+   hb_MemoWrit( cFile+"_"+ALLTRIM(STR(YEAR(DATE())))+;
+            ALLTRIM(STR(MONTH(DATE())))+;
+            ALLTRIM(STR(DAY(DATE())))+"_"+STRTRAN(ALLTRIM(TIME()),":","")+".txt",::cQry ) 
+   ::cQry := ""
+else
+   nCont++
+endif
+*/
+//      endif
+   NEXT
+
+//   MsgInfo( ::cQry )
+//View(   hb_MemoWrit( cFile,::cQry ) )
+/*
+   ::aStruct := {;
+                {"Tipo Doc.",  "C",5 ,0},;
+                {"Nro. Doc.",  "C",10,0},;
+                {"Comprobante","C",10,0},;
+                {"Fecha",      "D",8 ,0},;
+                {"Descripción","C",80,0},;
+                {"Monto",      "N",14,2},;
+                {"Saldo",      "N",14,2},;
+                {"Cuenta",     "C",20,0},;
+                {"Actualizado","C",01,0},;
+                {"Sucursal",   "C",06,0};
+                }
+*/
+   ::oQry:End()
+
+/*
+   DEFINE MODEL ::oModel ;
+          STRUCT ::aStruct ;
+          DATA ::aData
+
+   DEFINE LISTBOX ::oLBox ;
+          MODEL ::oModel ;
+          TITLE "Probando Sonido" SIZE 300,300
+
+   ::oLBox:Active()
+*/
+
+MsgInfo("Finalizado ajuste")
+//quit
+Return
+
+//eof
+
+

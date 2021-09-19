@@ -1,0 +1,317 @@
+/*
+ *  Proyecto Tpuy.
+ *
+ *  begin.xbs Programa Inicial. 
+ *  
+ */
+
+#include "xbscripts/tcursor.xbs"
+#include "xbscripts/tshop.xbs"
+
+#include "tpy_xbs.ch"
+
+Function begin()
+
+   LOCAL oWnd , oConn, oForm
+   LOCAL nHigh, nWide
+
+   SET PUBLIC oForm
+
+   oTpuy:cSystem_Name := "Reconversión Monetaria 2021"
+   oTpuy:cVersion     := "0.0.2"
+
+   oTPuy:cFileConnections := "tpy_rm_conn.xml"
+   oTPuy:cHost := "localhost"
+   oTPuy:cPort := ""
+   oTPuy:cDB   := ""
+   oTPuy:cUser := ""
+   oTpuy:cPass := ""
+
+   oTPuy:cIconMain := "tpuy.ico"
+
+   SET PUBLIC ::oConn
+
+   ::cResFile := oTpuy:cResources + "main.ui"
+
+   SET RESOURCES ::oRes FROM FILE ::cResFile
+
+   if FILE( GetEnv("homedrive")+oTPuy:cTemps+oTPuy:cFileConnections )
+      oTPuy:RunXBS("initialize", "CONNECT", .t., oForm )
+      if !hb_hHasKey( ::oConn:default, "oConn" )
+         oTPuy:RunXBS( "connconfig", oForm ) 
+         return 
+      endif
+   else
+      MsgInfo("Necesita indicar datos de conexión.",;
+              "Atención.")
+      //__ConnTemp(oForm)
+      oTPuy:RunXBS("connconfig", oForm ) 
+      return
+   endif
+
+
+#xcommand SET DBCONN <hConn> [FORM <oObject>]  =>  oTPuy:oConn := HGet( [<oObject>:]oConn:<hConn>, "oConn" )
+
+   SET DBCONN default FORM oForm
+   ::oDBServer := oTPuy:oConn
+
+   ::oShop := TShop():New( ::oDBServer,;  // conexion de lectura
+                           ::oDBServer,;  // conexion para escritura
+                           1,          ;  // Tienda
+                           1, )           // Idioma
+
+
+   nHigh := 500
+   nWide := 820
+   if oTPuy:cOS="WIN"
+      nHigh := 500
+      nWide := 800
+   endif
+
+   ::aSchemaRun := {}
+   ::aSchCbtesCon := {}
+
+   DEFINE WINDOW ::oWnd TITLE oTPuy:cSystem_Name + ". Ventana Inicial" ;
+      SIZE nWide,nHigh ;
+      ID "wnd_main" RESOURCE ::oRes
+
+      DEFINE IMAGE ::oImgBanner            ;
+         FILE oTPuy:cImages+"banner01.png" ;
+         ID "img_banner" RESOURCE ::oRes
+         //::oImgBanner:Adjust(nWide,100)
+/*      
+      DEFINE IMAGE ::oImgPresent ;
+         FILE oTPuy:cImages+"pos_01.png" ;
+         ID "img_present" RESOURCE ::oRes
+         ::oImgPresent:Adjust( 200 )
+*/
+      DEFINE LABEL ::oLabInfo MARKUP ID "label_info" RESOURCE ::oRes
+         ::oLabInfo:SetText("")
+
+//      DEFINE BOX ::oBox VERTICAL ID "vbox2" RESOURCE ::oRes 
+
+      DEFINE BOX ::oBoxSchema ID "box_schemas" RESOURCE ::oRes
+
+      DEFINE BOX ::oBoxData ID "box_data" RESOURCE ::oRes
+
+
+      DEFINE BUTTON ::oBtnConfig ACTION oTPuy:RunXBS("connconfig", oForm ) ;
+             ID "btn_config" RESOURCE ::oRes
+
+      //DEFINE BUTTON ::oBtnCatalog ACTION oTPuy:RunXBS( "category", oForm ) ; 
+      //       ID "btn_catalog" RESOURCE ::oRes
+
+      DEFINE BUTTON ::oBtnCatalog ACTION oTPuy:RunXBS( "tablas", oForm ) ; 
+             ID "btn_tables" RESOURCE ::oRes
+
+      DEFINE BUTTON ::oBtnPOS ACTION (oTPuy:RunXBS( "runrm", oForm ),SysRefresh(.t.)) ; 
+             ID "btn_rm" RESOURCE ::oRes
+
+      DEFINE BUTTON ::oBtnAbour ACTION __About(oForm) ;
+             ID "btn_about" RESOURCE ::oRes
+
+      DEFINE BUTTON ::oBtnSalir ACTION Salir() ;
+             ID "btn_exit" RESOURCE ::oRes
+
+      DEFINE NOTEBOOK ::oNoteBook ID "notebook1" RESOURCE ::oRes
+
+      ::cIntro := 'Selecciona "Revisar tablas"(1) para iniciar el proceso. '+hb_eol()+hb_eol()
+      ::cIntro += 'Luego, verifica si los campos marcados corresponden a los que deben ser convertidos. '+hb_eol()+hb_eol()
+      ::cIntro += 'Si consideras que todo está bien, selecciona la opción "Ejecutar Reconversión" (2). '+hb_eol()
+      ::cIntro += 'Este proceso generará las instrucciones SQL que deberás colocar en tu herramienta SQL favorita. '
+      DEFINE TEXTVIEW ::oTVIntro VAR ::cIntro ID "tv_intro" RESOURCE ::oRes
+
+      ::cTextSql := ""
+      DEFINE TEXTVIEW ::oTView VAR ::cTextSql ID "text_sql" RESOURCE ::oRes
+
+/*
+      DEFINE BUTTON ::oBtnSave ACTION MsgInfo("AQUI") ;
+             ID "btn_save" RESOURCE ::oRes
+             ::oBtnSave:Hide()
+*/
+
+      DEFINE BOX ::oBoxPAHead ID "box_pa_head" RESOURCE ::oRes
+
+        ::cSchema := ""
+        //DEFINE COMBOBOX ::oCmbSchemas VAR ::cSchema ITEMS ::aSchemaRun OF ::oBoxPAHead
+        DEFINE COMBOBOX ::oCmbSchemas VAR ::cSchema ITEMS {"lactuario"} OF ::oBoxPAHead
+
+        DEFINE BUTTON ::oBtnReLoad TEXT "Revisar"  ;
+               ACTION oTPuy:RunXBS( "pa_Reload", oForm ) ;
+               OF ::oBoxPAHead   
+
+        ::cCuenta := ""
+        DEFINE ENTRY ::oEntCuenta VAR ::cCuenta ;
+               ID "ent_cuenta" RESOURCE ::oRes
+
+        DEFINE BUTTON ::oBtnAjustar ;
+               ACTION oTPuy:RunXBS( "pa_Ajustar", oForm ) ;
+               ID "btn_ajustar" RESOURCE ::oRes
+
+      DEFINE BOX ::oBoxCbteCont ID "box_cbtes_cont" RESOURCE ::oRes
+
+   ACTIVATE WINDOW ::oWnd INITIATE
+
+return .t.
+
+
+
+/** Pantalla Acerca de.
+ *
+ */
+procedure __About( oForm )
+
+   SET RESOURCES ::oRes FROM FILE oTPuy:cResources+"main.ui"
+   DEFINE ABOUT ::oWndAbout ;
+          ID "about" RESOURCE ::oRes
+
+   DEFINE IMAGE ::oImgOrseit ID "logo_orseit" RESOURCE ::oRes
+          ::oImgOrseit:Adjust(100)
+
+   ACTIVATE DIALOG ::oWndAbout
+return
+
+
+
+/* Lee los datos inciales de configuracion de columnas a convertir */
+function rm_LEER( cFile )
+
+   local aArray:={}, aAux, cArray
+
+   default cFile := "no_columns.conf"
+
+   cArray := MemoRead( cFile )   
+   aAux := hb_aTokens( cArray, ";" ) 
+
+   AEVAL( aAux, {|a| iif( !empty(a), AADD( aArray, hb_aTokens(a,".") ), nil )  } )
+
+return aArray
+
+
+procedure rm_ModelColumns( oForm )
+
+  local aExceptions, nPos, aNoSchema
+  local cFNoSchema  := "no_schema.conf"
+  local cFNoColumns := "no_columns.conf"
+  local lModel := .F.
+
+  if hb_isObject( ::oModel ) 
+     lModel := .T.
+  endif
+
+  ::cQry := "select columns.table_schema, "
+  ::cQry += "columns.table_name, "
+  ::cQry += "columns.column_name, "
+  ::cQry += "true as convertir "
+  ::cQry += "from information_schema.columns "
+  ::cQry += "join information_schema.tables on "
+  ::cQry +=     "information_schema.columns.table_schema=information_schema.tables.table_schema and "
+  ::cQry +=     "information_schema.columns.table_name=information_schema.tables.table_name  "
+  ::cQry += "where table_type='BASE TABLE' and data_type='decimal' "
+  ::cQry += " and numeric_precision>10 "
+  ::cQry += " and columns.numeric_scale>0 "
+  ::cQry += " and not(columns.column_name like '%_VALCAM' "
+  ::cQry +=           "or columns.column_name like '%_PORCEN')"
+  ::cQry += " and not( columns.table_schema='sys' or columns.table_schema='information_schema')"
+
+  if file( cFNoSchema )
+     aNoSchema := hb_aTokens( MemoRead( cFNoSchema ), "," )
+     AEVAL( aNoSchema, {|a|  iif( !empty(a),::cQry += " and columns.table_schema!="+ToSql(a), nil) } )
+  endif
+
+  //::cQry += "limit 100"
+
+
+  //View( ::cQry )
+  ::oQry := oTPuy:oConn:Query( ::cQry )
+  if ::oQry:RecCount()=0
+     MsgStop("Nada que hacer...")
+     return .f.
+  endif
+
+
+  aExceptions := rm_Leer( cFNoColumns )
+  //View( aExceptions )
+
+
+  ::aData := {}
+  ::aSchemaData := {}
+
+  ::cSchema := ""
+
+  ::oQry:GoTop()
+  While !::oQry:Eof()
+
+     nPos := ASCAN( aExceptions, {|a| ::oQry:table_name=a[2] .and. ::oQry:column_name=a[3] } )
+     if nPos > 0 
+        AADD( ::aData, { ALLTRIM(::oQry:table_schema), ALLTRIM(::oQry:table_name), ALLTRIM(::oQry:column_name), .f. } )
+     else
+        AADD( ::aData, { ALLTRIM(::oQry:table_schema), ALLTRIM(::oQry:table_name), ALLTRIM(::oQry:column_name), .t. } )
+     endif 
+
+     if lModel
+        if ::cSchema != ::oQry:table_schema
+
+           APPEND LIST_STORE ::oModSchema:oLbx ITER aIter ;
+                  VALUES ALLTRIM( ::oQry:table_schema ), .T.
+           
+        endif
+
+        APPEND LIST_STORE ::oModel:oLbx ITER aIter ;
+               VALUES ALLTRIM( ::oQry:table_schema ), ;
+                      ALLTRIM( ::oQry:table_name ),   ;
+                      ALLTRIM( ::oQry:column_name ),  ;
+                      iif( nPos>0, .f., .t. )
+
+     else
+        if ::cSchema != ::oQry:table_schema
+           AADD( ::aSchemaData, {ALLTRIM(::oQry:table_schema), .T.} )
+        endif
+     endif
+
+     ::cSchema := ::oQry:table_schema
+     ::oQry:Skip()
+  EndDo
+
+  if !lModel
+
+     ::aSchemaStru := {{"Esquema"  , "C", 60, 0},;
+                       {"Convertir", "L",  1, 0} }
+
+     DEFINE MODEL  ::oModSchema ;
+            STRUCT ::aSchemaStru ;
+            DATA   ::aSchemaData
+
+
+     ::aStruct := {{"Esquema"  ,"C",60,0},;
+                   {"Tabla"    ,"C",60,0},;
+                   {"Columna"  ,"C",60,0},;
+                   {"Convertir","L", 1,0}}
+
+     DEFINE MODEL  ::oModel  ;
+            STRUCT ::aStruct ;
+            DATA   ::aData
+  endif
+
+  ::oQry:End()
+
+return
+
+
+/** Un ejemplo de como se podría manipular más fácilmente el objeto de conexión.
+ */
+procedure __Prueba( oForm )
+
+#xtranslate <object>:CONN:<connection>  =>  <object>:oConn:<connection>["oConn"]
+#xcommand   SET DBCONN <connection>     =>  oTPuy:oConn := ::oConn:<connection>["oConn"]
+#xtranslate oDBConn                     =>  oTPuy:oConn
+
+View( ::CONN:default )
+SET DBCONN miconexion
+View( oDBConn )
+
+return
+
+
+
+//eof

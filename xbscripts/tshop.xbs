@@ -1,0 +1,198 @@
+/*
+ *  Proyecto Tpuy.
+ *
+ *  tshop.xbs Clase de manejo de tiendas. (intento)
+ *  
+ */
+
+#include "tpy_class.ch"
+
+#define  CTLG_SHOP       O_SHOP:cTNAME
+#define  CTLG_SHOP_LBL   O_SHOP:cTLABEL
+
+/** POR HACER:
+ */
+
+CLASS TSHOP //FROM XXXX
+
+   DATA oConn                // Conexion para lectura
+   DATA oWConn               // Conexion para escritura
+   DATA lConn     INIT .F.
+
+   DATA nLang     INIT 1     // Lenguaje
+   DATA nShop     INIT 1     // Tienda
+   DATA nCountry  INIT 221   // País
+   DATA cCurrency INIT "Bs"  // Moneda
+   DATA nCurrency INIT 1     // Moneda
+
+   DATA cPrefix   INIT ""
+
+   DATA cTNAME    INIT ""
+   DATA cTLABEL   INIT ""
+
+   DATA hID 
+   DATA hName
+   DATA hDescri
+
+   METHOD New( oRConn, oWConn, nId, nIdLang )
+
+   METHOD Select( aColumns )          // Retorna texto para consulta SQL de la tabla.
+
+   METHOD GetModel( aColumns )        // Retorna modelo de datos con las columnas solicitadas
+
+protected:
+
+   DATA aCol
+
+   METHOD InnerJoin()
+
+ENDCLASS
+
+
+
+
+
+METHOD New( oRConn, oWConn, nIdShop, nIdLang )
+
+   LOCAL cQry, oQry, cType
+
+   DEFAULT nIdLang := 1
+   DEFAULT nIdShop := 1
+
+   If !IsNIL(oRConn) .and. oRConn:IsDerivedFrom("TDOLPHINSRV")
+      ::lConn := .t.
+      ::oConn := oRConn
+   EndIf
+
+   If !IsNIL(oWConn) .and. oWConn:IsDerivedFrom("TDOLPHINSRV")
+      ::oWConn := oWConn
+   Else
+      if ::lConn ; ::oWConn := oRConn ; endif
+   EndIf
+
+   ::nLang     := nIdLang
+   ::nShop     := nIdShop
+    
+   ::cTNAME    := ::cPrefix+::cTNAME
+
+   ::hID       := {"NAME"    => ::cTName+".id_shop", ; 
+                   "LABEL"   => "Código"              , ;
+                   "TYPE"    => "N"                   , ;
+                   "DEFAULT" => "0000000000"          , ;
+                   "LEN"     => 10                    , ;
+                   "DECIMAL" => 0  }
+
+   ::hName     := {"NAME"    => ::cTName+"_lang.name" , ; 
+                   "LABEL"   => "Nombre"              , ;
+                   "TYPE"    => "C"                   , ;
+                   "DEFAULT" => ""                    , ;
+                   "LEN"     => 50                    , ;
+                   "DECIMAL" => 0  }
+
+
+
+   if !::lConn ; return self ; endif
+
+
+   //-- Creamos estructura con los datos de la tabla
+
+   cQry := "select * from information_schema.columns where "
+   cQry +=         " table_schema="+ToSQL(::oConn:cDbName)+" and table_name="+ToSQL(::cTNAME)
+
+   oQry := ::oConn:Query( cQry )
+
+   ::aCol := ARRAY( oQry:RecCount(), 6 )
+   oQry:GoTop()
+
+   While !oQry:Eof()
+
+      ::aCol[oQry:RecNo(), 1 ] := ALLTRIM(oQry:COLUMN_NAME) 
+      ::aCol[oQry:RecNo(), 2 ] := ALLTRIM(oQry:COLUMN_NAME) 
+      ::aCol[oQry:RecNo(), 4 ] := ""
+      cType := ALLTRIM( oQry:DATA_TYPE ) 
+      if cType="tinyint"
+         ::aCol[oQry:RecNo(), 3 ] := "L"
+         ::aCol[oQry:RecNo(), 5 ] := 0
+         ::aCol[oQry:RecNo(), 6 ] := 0
+      elseif ( cType="int" .or. cType="decimal")
+         ::aCol[oQry:RecNo(), 3 ] := "N"
+         ::aCol[oQry:RecNo(), 5 ] := oQry:NUMERIC_PRECISION
+         ::aCol[oQry:RecNo(), 6 ] := oQry:NUMERIC_SCALE
+      elseif cType="varchar"
+         ::aCol[oQry:RecNo(), 3 ] := "C"
+         ::aCol[oQry:RecNo(), 5 ] := oQry:CHARACTER_MAXIMUM_LENGTH
+         ::aCol[oQry:RecNo(), 6 ] := 0
+      elseif cType="datetime"
+         ::aCol[oQry:RecNo(), 3 ] := "D"
+         ::aCol[oQry:RecNo(), 5 ] := 0
+         ::aCol[oQry:RecNo(), 6 ] := 0
+      elseif cType="enum"
+         ::aCol[oQry:RecNo(), 3 ] := "C"
+         ::aCol[oQry:RecNo(), 5 ] := oQry:CHARACTER_MAXIMUM_LENGTH
+         ::aCol[oQry:RecNo(), 6 ] := 0
+      else
+         ::aCol[oQry:RecNo(), 3 ] := "U"
+         ::aCol[oQry:RecNo(), 5 ] := 0
+         ::aCol[oQry:RecNo(), 6 ] := 0
+      endif
+
+      oQry:Skip()
+   EndDo
+
+   oQry:End()
+
+
+RETURN self
+
+
+
+/** Retorna texto SQL para consultar la tabla.
+ *
+ */
+METHOD Select(aColumns)
+
+   local cQry
+
+/*
+ En PrestaShop, casi todo esta casado con la tabla de tienda (shop) e idioma (lang)
+*/
+   cQry := "select "+::hId:NAME 
+   cQry +=      ", "+::hName:NAME
+   cQry +=      " from "+::cTNAME+" "
+   cQry += ::InnerJoin()
+   cQry +=      " where "+::cTNAME+"_lang.id_lang="+ToSQL(::nLang)
+   cQry +=      " and "+::cTNAME+"_shop.id_shop="+ToSQL(::nShop)
+   cQry += " order by id_product"
+
+
+RETURN cQry
+
+
+
+METHOD InnerJoin()
+
+   local cInner 
+
+   cInner +=      " inner join " + ::cTNAME + "_lang on " 
+   cInner +=          ::cTNAME+"_lang.id_product="+::cTNAME+".id_product and "
+   cInner +=          ::cTNAME+"_lang.id_shop="+ToSQL( ::nShop )
+
+RETURN cInner
+
+
+
+
+
+METHOD GetModel( aColumns )
+   
+   local oModel, cSelect
+
+   default aColumns := {}
+
+   cSelect := ::Select( aColumns )
+
+   //DEFINE MODEL oModel 
+
+RETURN
+
+//eof

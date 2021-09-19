@@ -1,0 +1,95 @@
+/* 
+ * Proyecto TPuy
+ * reconversion: Ventana de control y ejecución de reconversion monetaria
+ *
+ */
+
+#define  ORSEIT_ICON  oTPuy:cImages+"orseit_logo.ico"
+#define  WND_WIDE     880
+#define  WND_BANNER   oTpuy:cImages+"banner_1.png"
+
+/* Clase de Reconversion (Analisis) */
+#include "xbscripts/trm.xbs"  
+
+#include "tpy_xbs.ch"
+
+
+Procedure reconversion()
+   local oForm
+   local oObject
+
+   IF !hb_IsArray(oTpuy:aConnection) .OR. Empty(oTpuy:aConnection)
+      oTpuy:RunXBS('initialize','CONNECT')
+   ENDIF
+
+   /* Objeto de Analisis de Ventas */
+   oForm := TRM():New()
+//   SET PUBLIC oForm
+
+   ::oDpServer := oTpuy:aConnection[1]
+
+   ::cRes := ""
+
+   /* Valores Ajustables */
+   ::nLimit := 10
+   ::cF_Productos  := ""
+   ::cF_Clientes   := ""
+   ::cF_Vendedores := ""
+
+
+//View("aqui")
+   ::CreaVentana()
+//      __TopVtas(oForm)
+      ::Refresh()
+   ::Show()
+
+   ::End()
+
+Return
+
+
+
+
+Procedure  __Valida( oForm, cType )
+   local cQry, oQry
+   local cString
+   local oProductos
+
+
+   if lower(cType) = "productos"
+      cString := ::oEntProductos:GetText()
+      if !Empty(cString)
+         oProductos := nil
+         oProductos:= oTpuy:RunXBS( "dpproductos_lb", ;
+                                    oForm, ::oEntProductos, .f. )
+
+         if !hb_IsObject(oProductos) ; return ; endif
+
+         oProductos:oListBox:bEdit := {|| __SetValue(oForm, ::oEntProductos,;
+                                          oProductos) }
+         oProductos:oListBox:Active()
+
+//DEFINE BOX oProductos:oBConfig ID "hbox1" RESOURCE oProductos:cRes 
+//DEFINE LABEL oProductos:oLabel TEXT "Hola" OF oProductos:oBConfig
+
+         ACTIVATE WINDOW oProductos:oWnd MODAL
+      endif
+   endif
+
+Return 
+
+
+
+Static Function __SetValue(oForm, oEntry, oProductos)
+   local oModel := oProductos:oTpyModel
+   local uValue := oModel:oTreeView:GetAutoValue(1)
+
+   oEntry:SetText( uValue )
+   oProductos:End()
+
+   ::SetCondition( "mov_codigo = " + DataToSql(uValue) )
+   ::Refresh()
+return .t.
+
+//eof
+

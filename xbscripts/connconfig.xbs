@@ -1,0 +1,230 @@
+/*
+ *  Proyecto Tpuy.
+ *
+ *  connconfig.xbs Programa para Configuración de conexiones a 
+ *                 bases de datos. 
+ *  
+ */
+
+#include "tpy_xbs.ch"
+
+
+/** Ventana de Configuración
+ */
+Procedure ConnConfig( oForm )
+
+   local oConfig, aConn, uElement, oRes
+   local oBoxConn, oTemp, oBox, oBoxH, oEntry, cTemp := ""
+   local hConfig := Hash(), hConn
+   local cResFile := oTPuy:cResources+"connconfig.ui"
+
+   SET PUBLIC oConfig 
+   SET PUBLIC oConfig:oConn
+
+   oConfig:aTipo := {"MySQL", "PostgreSQL"}
+
+   SET RESOURCES oRes FROM FILE cResFile
+
+   DEFINE WINDOW oConfig:oWnd ;
+          SIZE 450,400 ;
+          TITLE oTpuy:cSystem_Name+". Configuración" ;
+          ID "wnd_config" RESOURCE oRes ;
+          OF ::oWnd
+
+   DEFINE BOX oConfig:oBoxConn ID "box_conns" RESOURCE oRes
+
+      DEFINE BUTTON oConfig:oBtnNuevo ;
+             ACTION __AnexaConn( oForm, oConfig, __ConnTemp(oForm) ) ;
+             ID "btn_nuevo" RESOURCE oRes
+
+      DEFINE BUTTON oConfig:oBtnGrabar ;
+             ACTION  __Grabar(oConfig) ; //View( hb_hKeys(oConfig:oConn:hVars["default"]) ) ;
+             ID "btn_grabar" RESOURCE oRes
+
+   FOR EACH aConn IN ::oConn:GetArray()
+      __AnexaConn( oForm, oConfig, aConn )
+   NEXT
+
+
+   ACTIVATE WINDOW oConfig:oWnd ;
+            VALID MsgYesNo("¿Realmente desea finalizar?")
+   
+return
+
+
+
+
+/** Crea un nuevo Hash de Conexión.
+ */
+Function __ConnTemp( oForm, oConn, cNameConn )
+   local hTConn 
+
+   default cNameConn := "default"
+   default oConn := ::oConn
+
+   if oConn:IsDef( cNameConn ) 
+      MsgAlert("Conexión ya esta definida", "Atención")
+      return {}
+   endif
+
+   oConn:Add( cNameConn, Hash() )
+
+   hTConn := oConn:Get(cNameConn)
+
+   hTConn["name" ] := cNameConn
+   hTConn["type" ] := "MYSQL"
+   hTConn["load" ] := .t.
+   hTConn["write"] := .t.
+   hTConn["host" ] := "localhost"
+   hTConn["port" ] := "3306"
+   hTConn["user" ] := "user"
+   hTConn["pass" ] := "password"
+   hTConn["db"   ] := "database"
+
+return {cNameConn,hTConn} //oConn
+
+
+
+
+/** Crea los widgets visuales con los datos para una conexion 
+ */
+Procedure  __AnexaConn( oForm, oConfig, aConn )
+
+   local cTemp, hConfig, hConn
+   local oConn := oConfig:oConn
+   local cConnName 
+
+
+   default aConn := {}
+
+   if empty(aConn); return ; endif
+
+   if !hb_IsHash( oConfig:hConfig ); oConfig:hConfig:= Hash() ; endif
+
+   // Creamos un hash con los widgets que contienen los datos de la conexión.
+   cConnName := STRTRAN(aConn[1]," ","")
+   oConn:Add( cConnName, Hash() )
+   hConn := oConn:Get( cConnName )
+   DEFINE EXPANDER hConn["expander"] PROMPT cConnName MARKUP OF oConfig:oBoxConn
+
+      DEFINE BOX oBox VERTICAL OF hConn["expander"]/*oConfig:oExpander*/ CONTAINER ;
+             BORDER 5 SPACING 3
+
+      DEFINE BOX oConfig:oBox OF oBox SPACING 5
+      DEFINE LABEL oConfig:oLabel TEXT "Nombre:" OF oConfig:oBox
+      oConfig:oLabel:Size(70,-1)
+      oConfig:oLabel:SetAlignment(1,-1)
+      cTemp := aConn[1]
+      DEFINE ENTRY hConn["ent_name"] VAR cTemp OF oConfig:oBox
+
+      oConfig:cType := ""
+      DEFINE LABEL oConfig:oLabel TEXT "Tipo:" OF oConfig:oBox
+      oConfig:oLabel:Size(50,-1)
+      oConfig:oLabel:SetAlignment(1,-1)
+      DEFINE COMBOBOX hConn["cmb_type"] VAR oConfig:cType;
+             ITEMS oConfig:aTipo OF oConfig:oBox
+
+      DEFINE BOX oConfig:oBox OF oBox SPACING 5
+      DEFINE LABEL oConfig:oLabel TEXT "Lectura:" OF oConfig:oBox
+      oConfig:oLabel:Size(70,-1)
+      oConfig:oLabel:SetAlignment(1,-1)
+      oConfig:lTemp := aConn[2]["load"]
+      DEFINE CHECKBOX hConn["chk_load"] VAR oConfig:lTemp OF oConfig:oBox
+
+      DEFINE LABEL oConfig:oLabel TEXT "Escritura:" OF oConfig:oBox
+      oConfig:oLabel:Size(70,-1)
+      oConfig:oLabel:SetAlignment(1,-1)
+      oConfig:lTemp := aConn[2]["write"]
+      DEFINE CHECKBOX hConn["chk_write"] VAR oConfig:lTemp OF oConfig:oBox
+
+      DEFINE BOX oConfig:oBox OF oBox SPACING 5
+      DEFINE LABEL oConfig:oLabel TEXT "Servidor:" OF oConfig:oBox
+      oConfig:oLabel:Size(70,-1)
+      oConfig:oLabel:SetAlignment(1,-1)
+      cTemp := aConn[2]["host"]
+      DEFINE ENTRY hConn["ent_host"] VAR cTemp OF oConfig:oBox
+
+      DEFINE LABEL oConfig:oLabel TEXT "Puerto:" OF oConfig:oBox
+      oConfig:oLabel:Size(50,-1)
+      oConfig:oLabel:SetAlignment(1,-1)
+      cTemp := aConn[2]["port"]
+      DEFINE ENTRY hConn["ent_port"] VAR cTemp OF oConfig:oBox
+             hConn["ent_port"]:Size(80,-1)
+
+      DEFINE BOX oConfig:oBox OF oBox SPACING 5
+      DEFINE LABEL oConfig:oLabel TEXT "Usuario:" OF oConfig:oBox
+      oConfig:oLabel:Size(70,-1)
+      oConfig:oLabel:SetAlignment(1,-1)
+      cTemp := aConn[2]["user"]
+      DEFINE ENTRY hConn["ent_user"] VAR cTemp OF oConfig:oBox
+
+      DEFINE BOX oConfig:oBox OF oBox SPACING 5
+      DEFINE LABEL oConfig:oLabel TEXT "Contraseña:" OF oConfig:oBox
+      oConfig:oLabel:Size(70,-1)
+      oConfig:oLabel:SetAlignment(1,-1)
+      cTemp := aConn[2]["pass"]
+      DEFINE ENTRY hConn["ent_pass"] VAR cTemp PASSWORD OF oConfig:oBox
+
+      DEFINE BOX oConfig:oBox OF oBox SPACING 5
+      DEFINE LABEL oConfig:oLabel TEXT "Base de datos:" OF oConfig:oBox
+      oConfig:oLabel:Size(70,-1)
+      oConfig:oLabel:SetAlignment(1,-1)
+      cTemp := aConn[2]["db"]
+      DEFINE ENTRY hConn["ent_db"] VAR cTemp OF oConfig:oBox
+
+return
+
+
+
+
+
+/** Guarda los datos visuales de los widgets al archivo xml correspondiente
+ */
+FUNCTION __Grabar( oConfig )
+
+   LOCAL nFileHandle, hConn
+   LOCAL oXmlDoc, oXmlConnection, oXmlDatabase,oXmlLogin
+   LOCAL cPass := oTpuy:cPass, cFile := oTpuy:cTemps+oTPuy:cFileConnections
+
+   if oTpuy:cOS = "WIN" ; cFile := "c:"+cFile ; endif
+
+   if Empty( oConfig:oConn:hVars )
+      MsgAlert("Nada para almacenar","Atención")
+      return .f.
+   endif
+
+   oXmlDoc := TXmlDocument():new( '<?xml version="1.0"?>' )
+
+   oXmlConnection := TXmlNode():new( , "connection", { "nombre" => oTPuy:cSystem_Name } )
+
+   oXmlDoc:oRoot:AddBelow( oXmlConnection )
+
+   FOR EACH hConn IN oConfig:oConn:hVars
+
+   cPass := hb_Crypt( hConn["ent_pass"]:GetValue()+"xyzz",oTpuy:cPassWord)
+
+   oXmlLogin := TXmlNode():new( , STRTRAN(hConn["ent_name"]:GetValue()," ",""), { ;
+                                  "tipo"       => hConn["cmb_type" ]:GetValue()   ,;
+                                  "host"       => hConn["ent_host" ]:GetValue()   ,;
+                                  "load"       => iif(hConn["chk_load" ]:GetValue(),"1","0")   ,;
+                                  "write"      => iif(hConn["chk_write"]:GetValue(),"1","0")   ,;
+                                  "port"       => hConn["ent_port" ]:GetValue()   ,;
+                                  "database"   => hConn["ent_db"   ]:GetValue()   ,;
+                                  "user"       => hConn["ent_user" ]:GetValue()   ,;
+                                  "password"   => cPass   ;
+                                } )
+   oXmlConnection:AddBelow( oXmlLogin )
+
+   NEXT
+
+   nFileHandle := FCreate( cFile )
+
+   oXmlDoc:write( nFileHandle, HBXML_STYLE_INDENT )
+   // close files
+   FClose( nFileHandle )
+
+   MsgInfo( "Proceso de guardar finalizado."+CRLF+;
+            "Debe reiniciar para establecer los parámetros.","Información" )
+
+RETURN NIL
+
