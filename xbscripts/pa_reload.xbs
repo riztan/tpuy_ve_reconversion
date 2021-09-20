@@ -8,7 +8,8 @@ procedure pa_Reload( oForm )
 
    ::aSchCbtesCont := {}
 
-   cQry := "select moc_numcbt, moc_fecha, sum(moc_monto) as monto, max(moc_item) as item from "
+   cQry := "select moc_numcbt, moc_fecha, sum(moc_monto) as monto, "
+   cQry += "max(moc_item) as item, moc_actual from "
    cQry += ALLTRIM(::oCmbSchemas:GetValue())+".dpasientos "
    cQry += "where moc_actual!='N' " 
    cQry += "group by moc_numcbt, moc_fecha "
@@ -32,14 +33,16 @@ procedure pa_Reload( oForm )
    oQry:GoTop()
    While !oQry:Eof()
 
-      AADD( ::aSchCbtesCont, { oQry:moc_numcbt, oQry:moc_fecha, oQry:monto, oQry:item } )
+      AADD( ::aSchCbtesCont, { oQry:moc_numcbt, oQry:moc_fecha,;
+                               oQry:monto, oQry:item, oQry:moc_actual } )
 
       if lModel
          APPEND LIST_STORE ::oModCbtesCont:oLbx ITER aIter ;
                 VALUES ALLTRIM( oQry:moc_numcbt ), ;
                        oQry:moc_fecha, ;
                        TRANSFORM( oQry:monto, P_92 ),;
-                       oQry:item
+                       oQry:item, ;
+                       ALLTRIM( oQry:moc_actual )
       endif
 
       oQry:Skip()
@@ -52,7 +55,8 @@ procedure pa_Reload( oForm )
      ::aStrCbtesCont := {{ "Cbte Id.", "C", 20,  0 },;
                          { "Fecha",    "D", 10,  0 },;
                          { "Saldo",    "N", 20,  2 },;
-                         { "Items",    "C", 04,  0 }}
+                         { "Items",    "C", 04,  0 },;
+                         { "tipo",     "C", 01,  0 }}
 
      DEFINE MODEL  ::oModCbtesCont ;
             STRUCT ::aStrCbtesCont ;

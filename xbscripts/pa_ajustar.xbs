@@ -38,7 +38,7 @@ procedure pa_Ajustar( oForm )
       cInsert += ToSql(ALLTRIM(STR(VAL(aCbteCont[4])+1)))+", "+ToSql(ALLTRIM(::oEntCuenta:GetValue()))
       cInsert += ", '', '', "+ToSql((aCbteCont[1]))+", "+ToSql(aCbteCont[2])
       cInsert += ", '', 'Ajuste por reconversion 2021', "+ToSql(aCbteCont[3]*-1)
-      cInsert += ", "+iif(aCbteCont[1]="CIERRE","'C'","'S'")+", '', 0, '000001', '', '', '', '', '', 1) "
+      cInsert += ", "+ToSql(aCbteCont[5])+", '', 0, '000001', '', '', '', '', '', 1) "
       AADD( aSql, cSql + "); " )
 
       TRY

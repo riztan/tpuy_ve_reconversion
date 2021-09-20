@@ -101,10 +101,12 @@ Function begin()
       //DEFINE BUTTON ::oBtnCatalog ACTION oTPuy:RunXBS( "category", oForm ) ; 
       //       ID "btn_catalog" RESOURCE ::oRes
 
-      DEFINE BUTTON ::oBtnCatalog ACTION oTPuy:RunXBS( "tablas", oForm ) ; 
+      DEFINE BUTTON ::oBtnCatalog ACTION (oTPuy:RunXBS( "tablas", oForm ),; 
+                                         Refresh_Combo( oForm ) ) ;
              ID "btn_tables" RESOURCE ::oRes
 
-      DEFINE BUTTON ::oBtnPOS ACTION (oTPuy:RunXBS( "runrm", oForm ),SysRefresh(.t.)) ; 
+      DEFINE BUTTON ::oBtnPOS ACTION (oTPuy:RunXBS( "runrm", oForm ),;
+                                      SysRefresh(.t.)) ; 
              ID "btn_rm" RESOURCE ::oRes
 
       DEFINE BUTTON ::oBtnAbour ACTION __About(oForm) ;
@@ -132,13 +134,19 @@ Function begin()
 
       DEFINE BOX ::oBoxPAHead ID "box_pa_head" RESOURCE ::oRes
 
+
+        DEFINE BUTTON ::oBtnRefresh ;
+               ACTION refresh_combo( oForm )     ;
+               ID "btn_refresh" RESOURCE ::oRes
+
         ::cSchema := ""
-        //DEFINE COMBOBOX ::oCmbSchemas VAR ::cSchema ITEMS ::aSchemaRun OF ::oBoxPAHead
-        DEFINE COMBOBOX ::oCmbSchemas VAR ::cSchema ITEMS {"lactuario"} OF ::oBoxPAHead
+        DEFINE COMBOBOX ::oCmbSchemas VAR ::cSchema ITEMS ::aSchemaRun OF ::oBoxPAHead
+
+        DEFINE BOX ::oBoxTmp SPACING 8 OF ::oBoxPAHead 
 
         DEFINE BUTTON ::oBtnReLoad TEXT "Revisar"  ;
                ACTION oTPuy:RunXBS( "pa_Reload", oForm ) ;
-               OF ::oBoxPAHead   
+               OF ::oBoxTmp //::oBoxPAHead   
 
         ::cCuenta := ""
         DEFINE ENTRY ::oEntCuenta VAR ::cCuenta ;
@@ -296,6 +304,43 @@ procedure rm_ModelColumns( oForm )
   ::oQry:End()
 
 return
+
+
+
+/** 
+ */
+procedure Refresh_Combo( oForm )
+
+   if !hb_isObject( ::oModSchema ) ; return ; endif
+
+   ::aSchemaRun := {}
+
+   ::oModSchema:GoTop()
+   While ::oModSchema:GoNext()
+
+      if ::oModSchema:GetCol("Convertir")
+
+         AADD( ::aSchemaRun, ALLTRIM( ::oModSchema:GetCol("Esquema") ) )
+
+      endif
+
+   EndDo
+
+   ::oCmbSchemas:Disconnect( "changed" )
+   if !Empty( ::aSchemaRun )
+      TRY
+         ::oCmbSchemas:RemoveAll()
+      CATCH
+      END
+   endif
+
+   ::oCmbSchemas:SetItems( ::aSchemaRun )
+   ::oCmbSchemas:Connect( "changed" )
+
+   ::oModSchema:GoTop()
+
+return
+
 
 
 /** Un ejemplo de como se podría manipular más fácilmente el objeto de conexión.
